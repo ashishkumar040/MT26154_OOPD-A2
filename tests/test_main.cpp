@@ -1,5 +1,5 @@
 // Minimal self-contained test runner (no external framework needed).
-
+#include "bookmgmt/EBook.h"
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -109,6 +109,44 @@ static void testJournal() {
     CHECK(os.str().find("subscription years: 3") != std::string::npos);
 }
    
+static void testEBook() {
+    EBook ebook("EB1", "C++ Programming",
+                {"Bjarne Stroustrup", "Another Author"},
+                "978-1234567890", "Tech Publisher", 2026,
+                Money::of(100), "https://example.com/ebook",
+                EBookFormat::PDF, true,
+                LicenseModel::AnnualSubscription, Money::of(500));
+
+    CHECK(ebook.category() == ResourceCategory::EBook);
+    CHECK(ebook.isDigital());
+    CHECK(ebook.authors().size() == 2);
+    CHECK(ebook.isbn() == "978-1234567890");
+    CHECK(ebook.format() == EBookFormat::PDF);
+    CHECK(ebook.drmEnabled());
+    CHECK(ebook.costFor(5) == Money::of(1000));
+
+    EBook epub("EB2", "Digital Systems", {"Author"},
+               "978-0000000000", "Publisher", 2025,
+               Money::of(80), "https://example.com/epub",
+               EBookFormat::EPUB, false);
+
+    CHECK(epub.format() == EBookFormat::EPUB);
+    CHECK(!epub.drmEnabled());
+    CHECK(epub.costFor(2) == Money::of(160));
+
+    std::ostringstream os;
+    os << ebook;
+    
+
+
+    CHECK(os.str().find("authors: Bjarne Stroustrup and Another Author")
+      != std::string::npos);
+          
+    CHECK(os.str().find("ISBN: 978-1234567890") != std::string::npos);
+    CHECK(os.str().find("format: PDF") != std::string::npos);
+    CHECK(os.str().find("DRM: Enabled") != std::string::npos);
+}
+
 
 
 static void testCatalog() {
@@ -207,6 +245,7 @@ int main() {
     testMoney();
     testResourcesAndCost();
     testJournal();
+    testEBook();
     testCatalog();
     testBudget();
     testAcquisition();
