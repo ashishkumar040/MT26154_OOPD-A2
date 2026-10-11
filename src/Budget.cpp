@@ -28,6 +28,20 @@ Budget::Budget(Money total) : total_(total) {
     if (total_.isNegative()) throw std::invalid_argument("budget must not be negative");
 }
 
+Budget Budget::rollover(double carryForwardPercent,
+                       Money nextYearAllocation) const {
+    if (carryForwardPercent < 0.0 || carryForwardPercent > 100.0)
+        throw std::invalid_argument("carry-forward percentage must be between 0 and 100");
+    if (nextYearAllocation.isNegative())
+        throw std::invalid_argument("next year's allocation must not be negative");
+
+    const auto remainingMinor = remaining().minorUnits();
+    const auto carriedMinor = static_cast<std::int64_t>(
+        remainingMinor * carryForwardPercent / 100.0);
+
+    return Budget(nextYearAllocation + Money::fromMinor(carriedMinor));
+}
+
 void Budget::setQuota(ResourceCategory c, Quota q) {
     if (q.maxUnits < 0 || q.maxSpend.isNegative() || q.maxTitles < 0)
         throw std::invalid_argument("quota limits must not be negative");

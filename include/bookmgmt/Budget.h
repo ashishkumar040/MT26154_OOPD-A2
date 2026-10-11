@@ -35,6 +35,10 @@ public:
     Money spent() const { return spent_; }
     Money remaining() const { return total_ - spent_; }
 
+    // Creates next year's budget with a percentage of this year's
+    // unspent amount carried forward. Percentage must be between 0 and 100.
+    Budget rollover(double carryForwardPercent, Money nextYearAllocation = Money{}) const;
+
     void setQuota(ResourceCategory c, Quota q);
     void removeQuota(ResourceCategory c);
     std::optional<Quota> quotaFor(ResourceCategory c) const;

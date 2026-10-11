@@ -388,6 +388,33 @@ static void testOrderCancellation() {
 }
 
 
+static void testYearEndRollover() {
+    Budget thisYear(Money::of(1000));
+    thisYear.commit(ResourceCategory::Book, 2, Money::of(700));
+
+    Budget nextYear = thisYear.rollover(50.0, Money::of(2000));
+    CHECK(nextYear.total() == Money::of(2150));
+    CHECK(nextYear.spent() == Money::of(0));
+    CHECK(nextYear.remaining() == Money::of(2150));
+
+    Budget noCarry = thisYear.rollover(0.0, Money::of(2000));
+    CHECK(noCarry.total() == Money::of(2000));
+
+    Budget fullCarry = thisYear.rollover(100.0, Money::of(2000));
+    CHECK(fullCarry.total() == Money::of(2300));
+
+    Budget fractional = thisYear.rollover(33.0, Money::of(2000));
+    CHECK(fractional.total() == Money::of(2099, 0)); // 33% of 300 = 99
+
+    CHECK_THROWS(thisYear.rollover(-1.0), std::invalid_argument);
+    CHECK_THROWS(thisYear.rollover(101.0), std::invalid_argument);
+    CHECK_THROWS(thisYear.rollover(50.0, Money::of(-1)), std::invalid_argument);
+
+    // Rollover must not modify this year's budget.
+    CHECK(thisYear.spent() == Money::of(700));
+    CHECK(thisYear.remaining() == Money::of(300));
+}
+
 static void testDepartmentBudgets() {
     Catalog c;
     c.emplace<Book>("B1", "Book One", std::vector<std::string>{"A"},
@@ -461,6 +488,7 @@ int main() {
     testBudget();
     testTitleQuota();
     testOrderCancellation();
+    testYearEndRollover();
     testDepartmentBudgets();
     testAcquisition();
     testAudioBook();

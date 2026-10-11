@@ -220,5 +220,21 @@ int main() {
               << departmentAcq.departmentBudget("Computer Science").spent()
               << "\n";
 
+    // Q10: Carry forward a configurable percentage of the unspent budget.
+    std::cout << "\\n=== Q10: Year-End Budget Rollover ===\\n";
+
+    Budget currentYear(Money::of(1000));
+    currentYear.commit(ResourceCategory::Book, 2, Money::of(700));
+
+    Budget nextYear = currentYear.rollover(50.0, Money::of(2000));
+
+    std::cout << "Current year's remaining budget: "
+              << currentYear.remaining() << "\\n";
+    std::cout << "Carry-forward percentage: 50%\\n";
+    std::cout << "Next year's fresh allocation: "
+              << Money::of(2000) << "\\n";
+    std::cout << "Next year's total budget after rollover: "
+              << nextYear.total() << "\\n";
+
     return 0;
 }
