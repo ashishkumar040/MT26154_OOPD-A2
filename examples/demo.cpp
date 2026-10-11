@@ -298,5 +298,38 @@ int main() {
               << (batchAcq.history().size() == historyBefore ? "yes" : "no")
               << "\n";
 
+
+    // Q14: Print lending and electronic-resource sessions.
+    std::cout << "\n=== Q14: Lending ===\n";
+
+    Catalog lendingCatalog;
+    lendingCatalog.emplace<Book>(
+        "L001", "Lending Demo Book", std::vector<std::string>{"Demo Author"},
+        "ISBN-L001", "Demo Publisher", 2026, Money::of(100));
+    lendingCatalog.emplace<ElectronicResource>(
+        "L002", "Lending Demo Database", "Demo Publisher", 2026,
+        Money::of(50), "https://example.com");
+
+    lendingCatalog.addHoldings("L001", 2);
+    lendingCatalog.addHoldings("L002", 2);
+
+    LendingManager lending(lendingCatalog);
+    lending.borrow("L001", "P001");
+    std::cout << "Print copies borrowed: "
+              << lending.borrowedCount("L001") << "\n";
+
+    lending.returnCopy("L001", "P001");
+    std::cout << "Print copies borrowed after return: "
+              << lending.borrowedCount("L001") << "\n";
+
+    lending.openSession("L002", "P001");
+    lending.openSession("L002", "P002");
+    std::cout << "Active electronic sessions: "
+              << lending.activeSessions("L002") << "\n";
+
+    lending.closeSession("L002", "P001");
+    std::cout << "Active sessions after closing one: "
+              << lending.activeSessions("L002") << "\n";
+
     return 0;
 }

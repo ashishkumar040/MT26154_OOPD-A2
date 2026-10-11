@@ -601,12 +601,71 @@ static void testVendorPricing() {
     CHECK(batch[0].preTaxCost == Money::of(70));
 }
 
+
+static void testLending() {
+    Catalog c;
+    c.emplace<Book>("B1", "Print Book", std::vector<std::string>{"Author"},
+                    "ISBN1", "Publisher", 2020, Money::of(10));
+    c.emplace<ElectronicResource>("R1", "Digital Resource", "Publisher", 2020,
+                                  Money::of(10), "url");
+
+    c.addHoldings("B1", 2);
+    c.addHoldings("R1", 2);
+
+    LendingManager lending(c);
+
+    // Print borrowing respects the number of copies held.
+    lending.borrow("B1", "P1");
+    lending.borrow("B1", "P2");
+    CHECK(lending.borrowedCount("B1") == 2);
+    CHECK_THROWS(lending.borrow("B1", "P3"), std::runtime_error);
+    CHECK_THROWS(lending.borrow("B1", "P1"), std::invalid_argument);
+
+    // Returning frees a copy; returning twice is invalid.
+    lending.returnCopy("B1", "P1");
+    CHECK(lending.borrowedCount("B1") == 1);
+    CHECK_THROWS(lending.returnCopy("B1", "P1"), std::invalid_argument);
+    lending.borrow("B1", "P3");
+    CHECK(lending.borrowedCount("B1") == 2);
+
+    // Print resources cannot be opened as electronic sessions.
+    CHECK_THROWS(lending.openSession("B1", "P1"), std::invalid_argument);
+    CHECK_THROWS(lending.returnCopy("B1", "UNKNOWN"), std::invalid_argument);
+
+    // Electronic sessions respect licensed-seat limits.
+    lending.openSession("R1", "P1");
+    lending.openSession("R1", "P2");
+    CHECK(lending.activeSessions("R1") == 2);
+    CHECK_THROWS(lending.openSession("R1", "P3"), std::runtime_error);
+    CHECK_THROWS(lending.openSession("R1", "P1"), std::invalid_argument);
+
+    // Closing a session frees a seat.
+    lending.closeSession("R1", "P1");
+    CHECK(lending.activeSessions("R1") == 1);
+    CHECK_THROWS(lending.closeSession("R1", "P1"), std::invalid_argument);
+    lending.openSession("R1", "P3");
+    CHECK(lending.activeSessions("R1") == 2);
+
+    // Electronic resources cannot be borrowed as print copies.
+    CHECK_THROWS(lending.borrow("R1", "P4"), std::invalid_argument);
+    CHECK_THROWS(lending.closeSession("B1", "P1"), std::invalid_argument);
+
+    // Lending does not change the total copies or licensed seats.
+    CHECK(c.holdings("B1") == 2);
+    CHECK(c.holdings("R1") == 2);
+
+    // Unknown resource IDs are reported.
+    CHECK_THROWS(lending.borrow("MISSING", "P1"), NotFoundError);
+    CHECK_THROWS(lending.openSession("MISSING", "P1"), NotFoundError);
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
     testJournal();
     testEBook();
     testCatalog();
+    testLending();
     testBudget();
     testTitleQuota();
     testOrderCancellation();
