@@ -175,5 +175,50 @@ int main() {
     std::cout << "History records retained: "
               << cancelAcq.history().size() << "\\n";
 
+
+    // Q9: Each department has an independent budget and quotas.
+    std::cout << "\n=== Q9: Department Budgets ===\n";
+
+    Catalog departmentCatalog;
+    departmentCatalog.emplace<Book>(
+        "D001", "Computer Science Book", std::vector<std::string>{"Author"},
+        "ISBN-D001", "Publisher", 2026, Money::of(100));
+    departmentCatalog.emplace<Book>(
+        "D002", "Physics Book", std::vector<std::string>{"Author"},
+        "ISBN-D002", "Publisher", 2026, Money::of(150));
+
+    Budget sharedBudget(Money::of(10000));
+    AcquisitionManager departmentAcq(departmentCatalog, sharedBudget);
+
+    departmentAcq.addDepartment("Computer Science", Money::of(300));
+    departmentAcq.addDepartment("Physics", Money::of(500));
+
+    departmentAcq.departmentBudget("Computer Science").setQuota(
+        ResourceCategory::Book, {3, Money::of(200), 2});
+    departmentAcq.departmentBudget("Physics").setQuota(
+        ResourceCategory::Book, {5, Money::of(500), 3});
+
+    const int csOrderNo =
+        departmentAcq.purchase("D001", 2, "Computer Science").orderNo;
+    std::cout << "Computer Science order approved.\\n";
+
+    const auto& physicsOrder =
+        departmentAcq.purchase("D002", 2, "Physics");
+    std::cout << "Physics order cost: " << physicsOrder.cost << "\n";
+
+    std::cout << "Computer Science budget spent: "
+              << departmentAcq.departmentBudget("Computer Science").spent()
+              << "\n";
+    std::cout << "Physics budget spent: "
+              << departmentAcq.departmentBudget("Physics").spent() << "\n";
+
+    const auto& csCancellation =
+        departmentAcq.cancelOrder(csOrderNo);
+    std::cout << "Cancelled order department: "
+              << csCancellation.department << "\n";
+    std::cout << "Computer Science budget after refund: "
+              << departmentAcq.departmentBudget("Computer Science").spent()
+              << "\n";
+
     return 0;
 }

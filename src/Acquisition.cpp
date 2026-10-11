@@ -3,6 +3,8 @@
 #include <iomanip>
 #include <ostream>
 #include <stdexcept>
+#include <tuple>
+#include <utility>
 
 #include "bookmgmt/Exceptions.h"
 
@@ -11,6 +13,33 @@ namespace bookmgmt {
 AcquisitionManager::AcquisitionManager(Catalog& catalog, Budget& budget,
                                        TaxRates taxRates)
     : catalog_(catalog), budget_(budget), taxRates_(taxRates) {}
+
+void AcquisitionManager::addDepartment(const std::string& name,
+                                      Money totalBudget) {
+    if (name.empty())
+        throw std::invalid_argument("department name cannot be empty");
+
+    if (departments_.find(name) != departments_.end())
+        throw std::invalid_argument("department already exists: " + name);
+
+    departments_.emplace(name, Department(name, totalBudget));
+}
+
+Budget& AcquisitionManager::departmentBudget(const std::string& name) {
+    auto it = departments_.find(name);
+    if (it == departments_.end())
+        throw std::invalid_argument("department not found: " + name);
+    return it->second.budget;
+}
+
+const Budget& AcquisitionManager::departmentBudget(
+    const std::string& name) const {
+    auto it = departments_.find(name);
+    if (it == departments_.end())
+        throw std::invalid_argument("department not found: " + name);
+    return it->second.budget;
+}
+
 Money AcquisitionManager::quotePreTax(const std::string& id, int quantity) const {
     return catalog_.get(id).costFor(quantity);
 }
@@ -55,6 +84,29 @@ PurchaseRecord& AcquisitionManager::record(const Resource* r, const std::string&
     return history_.back();
 }
 
+bool AcquisitionManager::canPurchase(const std::string& id, int quantity,
+                                     const std::string& department,
+                                     std::string* reason) const {
+    std::string why;
+    auto it = departments_.find(department);
+
+    if (it == departments_.end()) {
+        why = "department not found: " + department;
+    } else if (quantity <= 0) {
+        why = "quantity must be positive";
+    } else if (const Resource* r = catalog_.find(id)) {
+        const Money cost = quote(id, quantity);
+        why = it->second.budget.check(
+            r->category(), quantity, cost, id);
+    } else {
+        why = "resource not found: " + id;
+    }
+
+    if (reason)
+        *reason = why;
+    return why.empty();
+}
+
 const PurchaseRecord& AcquisitionManager::purchase(const std::string& id, int quantity) {
     const Resource& r = catalog_.get(id);
     const Money preTaxCost = r.costFor(quantity);
@@ -66,6 +118,28 @@ const PurchaseRecord& AcquisitionManager::purchase(const std::string& id, int qu
     history_.push_back(PurchaseRecord{
         nextOrderNo_++, id, r.title(), r.category(), quantity,
         preTaxCost, cost, true, {}
+    });
+    return history_.back();
+}
+
+const PurchaseRecord& AcquisitionManager::purchase(
+    const std::string& id, int quantity, const std::string& department) {
+    auto it = departments_.find(department);
+    if (it == departments_.end())
+        throw std::invalid_argument("department not found: " + department);
+    if (quantity <= 0)
+        throw std::invalid_argument("quantity must be positive");
+
+    const Resource& r = catalog_.get(id);
+    const Money preTaxCost = r.costFor(quantity);
+    const Money cost = preTaxCost + taxFor(id, quantity);
+
+    it->second.budget.commit(r.category(), quantity, cost, id);
+    catalog_.addHoldings(id, quantity);
+
+    history_.push_back(PurchaseRecord{
+        nextOrderNo_++, id, r.title(), r.category(), quantity,
+        preTaxCost, cost, true, {}, false, 0, department
     });
     return history_.back();
 }
@@ -114,15 +188,19 @@ const PurchaseRecord& AcquisitionManager::cancelOrder(int orderNo) {
         }
     }
 
-    budget_.refund(cancelled.category, cancelled.quantity, cancelled.cost,
-                   cancelled.resourceId, !anotherActivePurchase);
+    Budget& refundBudget = cancelled.department.empty()
+        ? budget_
+        : departmentBudget(cancelled.department);
+
+    refundBudget.refund(cancelled.category, cancelled.quantity, cancelled.cost,
+                        cancelled.resourceId, !anotherActivePurchase);
     catalog_.addHoldings(cancelled.resourceId, -cancelled.quantity);
 
     history_.push_back(PurchaseRecord{
         nextOrderNo_++, cancelled.resourceId, cancelled.title,
         cancelled.category, cancelled.quantity, cancelled.preTaxCost,
         cancelled.cost, true, "Cancellation of order #" +
-        std::to_string(orderNo), true, orderNo
+        std::to_string(orderNo), true, orderNo, cancelled.department
     });
 
     return history_.back();
@@ -146,14 +224,33 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
         } else {
             preTaxCost = r->costFor(req.quantity);
             cost = preTaxCost + taxFor(req.resourceId, req.quantity);
-            why = budget_.check(r->category(), req.quantity, cost, req.resourceId);
+
+            if (req.department.empty()) {
+                why = budget_.check(r->category(), req.quantity, cost,
+                                    req.resourceId);
+            } else {
+                auto it = departments_.find(req.department);
+                if (it == departments_.end()) {
+                    why = "department not found: " + req.department;
+                } else {
+                    why = it->second.budget.check(
+                        r->category(), req.quantity, cost, req.resourceId);
+                }
+            }
         }
 
         if (why.empty()) {
-            results.push_back(purchase(req.resourceId, req.quantity));
+            if (req.department.empty()) {
+                results.push_back(purchase(req.resourceId, req.quantity));
+            } else {
+                results.push_back(
+                    purchase(req.resourceId, req.quantity, req.department));
+            }
         } else {
             results.push_back(record(r, req.resourceId, req.quantity,
                                      preTaxCost, cost, false, why));
+            results.back().department = req.department;
+            history_.back().department = req.department;
         }
     }
     return results;

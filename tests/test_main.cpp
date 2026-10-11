@@ -387,6 +387,71 @@ static void testOrderCancellation() {
     CHECK_THROWS(acq.cancelOrder(9999), std::invalid_argument);
 }
 
+
+static void testDepartmentBudgets() {
+    Catalog c;
+    c.emplace<Book>("B1", "Book One", std::vector<std::string>{"A"},
+                    "i", "P", 2020, Money::of(100));
+    c.emplace<Book>("B2", "Book Two", std::vector<std::string>{"B"},
+                    "i", "P", 2021, Money::of(100));
+
+    Budget sharedBudget(Money::of(10000));
+    AcquisitionManager acq(c, sharedBudget, TaxRates{});
+
+    acq.addDepartment("Computer Science", Money::of(300));
+    acq.addDepartment("Physics", Money::of(500));
+
+    acq.departmentBudget("Computer Science").setQuota(
+        ResourceCategory::Book, {3, Money::of(200), 1});
+    acq.departmentBudget("Physics").setQuota(
+        ResourceCategory::Book, {5, Money::of(500), 3});
+
+    std::string why;
+    CHECK(acq.canPurchase("B1", 2, "Computer Science", &why));
+    CHECK(why.empty());
+    CHECK(!acq.canPurchase("B1", 3, "Computer Science", &why));
+    CHECK(!acq.canPurchase("B1", 1, "Unknown Department", &why));
+    CHECK(why.find("department not found") != std::string::npos);
+    CHECK_THROWS(acq.departmentBudget("Unknown Department"),
+                 std::invalid_argument);
+    CHECK_THROWS(acq.addDepartment("Physics", Money::of(100)),
+                 std::invalid_argument);
+
+    const int csOrder =
+        acq.purchase("B1", 2, "Computer Science").orderNo;
+    CHECK(acq.history().back().department == "Computer Science");
+    CHECK(acq.departmentBudget("Computer Science").spent() == Money::of(200));
+    CHECK(acq.departmentBudget("Physics").spent() == Money::of(0));
+    CHECK(sharedBudget.spent() == Money::of(0));
+
+    // Physics has its own budget and title quota.
+    CHECK(acq.canPurchase("B2", 2, "Physics"));
+    acq.purchase("B2", 2, "Physics");
+    CHECK(acq.departmentBudget("Physics").spent() == Money::of(200));
+    CHECK(c.holdings("B1") == 2 && c.holdings("B2") == 2);
+
+    // A department-specific batch request uses that department's budget.
+    const auto batch = acq.processBatch({
+        {"B1", 1, "Computer Science"},
+        {"B2", 1, "Unknown Department"}
+    });
+    CHECK(batch.size() == 2);
+    CHECK(!batch[0].approved);  // CS has reached its title quota.
+    CHECK(!batch[1].approved);
+    CHECK(batch[1].department == "Unknown Department");
+    CHECK(batch[1].reason.find("department not found") != std::string::npos);
+
+    // Cancelling the CS order refunds the CS budget, not the shared budget.
+    const auto& cancellation = acq.cancelOrder(csOrder);
+    CHECK(cancellation.cancellation);
+    CHECK(cancellation.department == "Computer Science");
+    CHECK(acq.departmentBudget("Computer Science").spent() == Money::of(0));
+    CHECK(acq.departmentBudget("Physics").spent() == Money::of(200));
+    CHECK(sharedBudget.spent() == Money::of(0));
+    CHECK(c.holdings("B1") == 0);
+    CHECK(acq.canPurchase("B2", 1, "Computer Science"));
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -396,6 +461,7 @@ int main() {
     testBudget();
     testTitleQuota();
     testOrderCancellation();
+    testDepartmentBudgets();
     testAcquisition();
     testAudioBook();
     testThesis();

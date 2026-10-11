@@ -1,8 +1,10 @@
 #pragma once
+#include <utility>
 // AcquisitionManager: turns purchase requests into orders, enforcing the
 // Budget's quotas, updating Catalog holdings and keeping an order history.
 
 #include <iosfwd>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -14,6 +16,15 @@ namespace bookmgmt {
 struct PurchaseRequest {
     std::string resourceId;
     int quantity;  // copies for print, seats for electronic
+    std::string department = {};
+};
+
+struct Department {
+    std::string name;
+    Budget budget;
+
+    Department(std::string departmentName, Money totalBudget)
+        : name(std::move(departmentName)), budget(totalBudget) {}
 };
 
 struct PurchaseRecord {
@@ -28,6 +39,7 @@ struct PurchaseRecord {
     std::string reason;  // why it was rejected; empty if approved
     bool cancellation = false;
     int cancelsOrderNo = 0;
+    std::string department = {};
 };
 struct TaxRates {
     int printPercent = 0;
@@ -38,6 +50,9 @@ class AcquisitionManager {
 public:
     AcquisitionManager(Catalog& catalog, Budget& budget,
                    TaxRates taxRates = {});
+    void addDepartment(const std::string& name, Money totalBudget);
+    Budget& departmentBudget(const std::string& name);
+    const Budget& departmentBudget(const std::string& name) const;
 
     // Price of a request without buying anything. Throws NotFoundError.
     Money quote(const std::string& id, int quantity) const;
@@ -52,6 +67,11 @@ Money taxFor(const std::string& id, int quantity) const;
     // BudgetExceededError or std::invalid_argument. On success the budget
     // and holdings are updated and the record is added to history.
     const PurchaseRecord& purchase(const std::string& id, int quantity);
+    const PurchaseRecord& purchase(const std::string& id, int quantity,
+                                   const std::string& department);
+    bool canPurchase(const std::string& id, int quantity,
+                     const std::string& department,
+                     std::string* reason = nullptr) const;
 
     // Cancels an approved order and records the cancellation in history.
     const PurchaseRecord& cancelOrder(int orderNo);
@@ -74,6 +94,7 @@ private:
     Catalog& catalog_;
     Budget& budget_;
     TaxRates taxRates_;
+    std::map<std::string, Department> departments_;
     std::vector<PurchaseRecord> history_;
     int nextOrderNo_ = 1;
 };
