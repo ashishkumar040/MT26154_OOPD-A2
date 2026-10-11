@@ -24,6 +24,27 @@ int main() {
                                         
     catalog.emplace<Journal>("J001", "IEEE Spectrum", "1234-5678", 12,
                               "IEEE", 2025, Money::of(120), 3);
+                              
+    catalog.emplace<EBook>(
+        "EB001", "C++ Programming",
+        std::vector<std::string>{"Bjarne Stroustrup", "Another Author"},
+        "978-1234567890", "Tech Publisher", 2026,
+        Money::of(100), "https://example.com/ebook",
+        EBookFormat::PDF, true,
+        LicenseModel::AnnualSubscription, Money::of(500));
+        
+    catalog.emplace<AudioBook>(
+        "A001", "Digital Design Audio", "John Smith", 240,
+        "Tech Publisher", 2026, Money::of(100),
+        "https://example.com/audio",
+        LicenseModel::AnnualSubscription, Money::of(500));
+
+    catalog.emplace<Thesis>(
+        "T001", "VLSI Design Research",
+        "IIIT Delhi", "M.Tech", "Dr. Sharma",
+        "IIIT Delhi", 2026);
+
+
 
 
 
@@ -39,6 +60,8 @@ std::cout << "Cost for 2 copies of J001 for 3 years = "
     budget.setQuota(ResourceCategory::Book, {10, Money::of(8000)});
     budget.setQuota(ResourceCategory::ElectronicResource, {40, Money::of(12000)});
     budget.setQuota(ResourceCategory::Journal, {5, Money::of(2000)});
+    budget.setQuota(ResourceCategory::EBook, {20, Money::of(5000)});
+    
 
     AcquisitionManager acq(catalog, budget);
 
@@ -46,17 +69,29 @@ std::cout << "Cost for 2 copies of J001 for 3 years = "
     std::cout << "5 copies of B002  = " << acq.quote("B002", 5) << "\n";
     std::cout << "20 seats of R001  = " << acq.quote("R001", 20) << "  (incl. platform fee)\n";
 
+    
     acq.processBatch({
-        {"B001", 4},   // 1800  ok
-        {"B002", 5},   // 6000  ok  -> book spend 7800
-        {"B001", 1},   // 450   rejected: book spend quota (200 left)
-        {"R001", 20},  // 5000  ok
-        {"R002", 25},  // 10000 rejected: e-resource unit quota (20 seats left)
-        {"R002", 15},  // 6000  ok  -> e-resource spend 11000
-        {"R002", 5}, 
-        {"J001", 2},   // Journal: 2 copies, 3-year subscription = 720  // 2000  rejected: e-resource spend quota (1000 left)
-        {"X999", 1},   // rejected: unknown id
+        {"B001", 4},   // 1800 ok
+        {"B002", 5},   // 6000 ok
+        {"B001", 1},   // rejected: Book spend quota
+        {"R001", 20},  // 5000 ok
+        {"R002", 25},  // rejected: unit quota
+        {"R002", 15},  // 6000 ok
+        {"R002", 5},   // rejected: spend quota
+        {"J001", 2},   // Journal subscription
+        {"EB001", 2},  // EBook: platform fee + 2 seats = 700
+        {"X999", 1}    // rejected: unknown resource
     });
+
+
+ 
+         
+        
+
+    // EBook: 2 seats = ₹700
+ // Journal: 2 copies, 3-year subscription = 720  // 2000  rejected: e-resource spend quota (1000 left)
+          // rejected: unknown id
+    
 
     std::cout << "\n=== Acquisition report ===\n";
     acq.printReport(std::cout);
