@@ -521,6 +521,60 @@ static void testDepartmentBudgets() {
     CHECK(acq.canPurchase("B2", 1, "Computer Science"));
 }
 
+
+static void testVendorPricing() {
+    Catalog c;
+    Book& book = c.emplace<Book>(
+        "B12", "Vendor Test Book", std::vector<std::string>{"Author"},
+        "ISBN12", "Publisher", 2026, Money::of(100));
+
+    Budget budget(Money::of(1000));
+    AcquisitionManager acq(c, budget);
+
+    acq.addVendorOffer("B12", "Vendor A", Money::of(90));
+    acq.addVendorOffer("B12", "Vendor B", Money::of(70));
+    acq.addVendorOffer("B12", "Vendor C", Money::of(80));
+
+    CHECK(acq.cheapestVendor("B12") == "Vendor B");
+    CHECK(acq.quotePreTax("B12", 2) == Money::of(140));
+    CHECK(acq.quote("B12", 2) == Money::of(140));
+
+    const auto& order = acq.purchase("B12", 2);
+    CHECK(order.approved);
+    CHECK(order.vendor == "Vendor B");
+    CHECK(order.vendorUnitPrice == Money::of(70));
+    CHECK(order.preTaxCost == Money::of(140));
+    CHECK(order.cost == Money::of(140));
+
+    // Vendor pricing must not permanently change the catalog price.
+    CHECK(book.unitPrice() == Money::of(100));
+
+    // Resources without vendor offers keep the existing behavior.
+    Catalog c2;
+    c2.emplace<Book>(
+        "B13", "Regular Book", std::vector<std::string>{"Author"},
+        "ISBN13", "Publisher", 2026, Money::of(50));
+    Budget budget2(Money::of(500));
+    AcquisitionManager acq2(c2, budget2);
+
+    const auto& regularOrder = acq2.purchase("B13", 2);
+    CHECK(regularOrder.vendor.empty());
+    CHECK(regularOrder.vendorUnitPrice == Money::of(50));
+    CHECK(regularOrder.cost == Money::of(100));
+
+    CHECK_THROWS(
+        acq.addVendorOffer("B12", "Invalid Vendor", Money::fromMinor(-1)),
+        std::invalid_argument);
+
+    // Q12 + Q11: batch purchases must use and record the cheapest vendor.
+    auto batch = acq.processBatch({{"B12", 1}}, true);
+    CHECK(batch.size() == 1);
+    CHECK(batch[0].approved);
+    CHECK(batch[0].vendor == "Vendor B");
+    CHECK(batch[0].vendorUnitPrice == Money::of(70));
+    CHECK(batch[0].preTaxCost == Money::of(70));
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -532,6 +586,7 @@ int main() {
     testOrderCancellation();
     testYearEndRollover();
     testDepartmentBudgets();
+    testVendorPricing();
     testAllOrNothingBatch();
     testAcquisition();
     testAudioBook();

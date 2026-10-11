@@ -94,6 +94,16 @@ int main() {
         {"X999", 1}
     });
 
+    // Q12: Compare vendors and purchase from the cheapest one.
+    acq.addVendorOffer("B001", "Vendor A", Money::of(430));
+    acq.addVendorOffer("B001", "Vendor B", Money::of(410));
+    acq.addVendorOffer("B001", "Vendor C", Money::of(425));
+
+    std::cout << "\n=== Q12: Vendor comparison ===\n";
+    std::cout << "Cheapest vendor for B001: "
+              << acq.cheapestVendor("B001") << "\n";
+    std::cout << "Quote for 1 copy: " << acq.quote("B001", 1) << "\n";
+
     std::cout << "\n=== Acquisition report ===\n";
     acq.printReport(std::cout);
 

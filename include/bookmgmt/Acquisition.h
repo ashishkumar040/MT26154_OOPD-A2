@@ -40,6 +40,8 @@ struct PurchaseRecord {
     bool cancellation = false;
     int cancelsOrderNo = 0;
     std::string department = {};
+    std::string vendor = {};
+    Money vendorUnitPrice = Money{};
 };
 struct TaxRates {
     int printPercent = 0;
@@ -53,6 +55,11 @@ public:
     void addDepartment(const std::string& name, Money totalBudget);
     Budget& departmentBudget(const std::string& name);
     const Budget& departmentBudget(const std::string& name) const;
+
+    // Q12: Register vendor prices for a resource.
+    void addVendorOffer(const std::string& resourceId,
+                        const std::string& vendor, Money unitPrice);
+    std::string cheapestVendor(const std::string& resourceId) const;
 
     // Price of a request without buying anything. Throws NotFoundError.
     Money quote(const std::string& id, int quantity) const;
@@ -97,6 +104,7 @@ private:
     Budget& budget_;
     TaxRates taxRates_;
     std::map<std::string, Department> departments_;
+    std::map<std::string, std::map<std::string, Money>> vendorOffers_;
     std::vector<PurchaseRecord> history_;
     int nextOrderNo_ = 1;
 };
