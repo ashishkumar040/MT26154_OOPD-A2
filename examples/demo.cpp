@@ -236,5 +236,41 @@ int main() {
     std::cout << "Next year's total budget after rollover: "
               << nextYear.total() << "\\n";
 
+
+    // Q11: All-or-nothing batch processing.
+    std::cout << "\n=== Q11: All-or-Nothing Batch ===\n";
+
+    Catalog batchCatalog;
+    batchCatalog.emplace<Book>(
+        "A001", "Batch Demo Book", std::vector<std::string>{"Author"},
+        "ISBN-A001", "Publisher", 2026, Money::of(100));
+
+    Budget batchBudget(Money::of(250));
+    AcquisitionManager batchAcq(batchCatalog, batchBudget);
+
+    const auto acceptedBatch =
+        batchAcq.processBatch({{"A001", 1}, {"A001", 1}}, true);
+
+    std::cout << "Valid batch: "
+              << (acceptedBatch[0].approved && acceptedBatch[1].approved
+                      ? "all purchases approved" : "batch rejected")
+              << "\n";
+    std::cout << "Budget spent after valid batch: "
+              << batchBudget.spent() << "\n";
+
+    const auto historyBefore = batchAcq.history().size();
+    const auto rejectedBatch =
+        batchAcq.processBatch({{"A001", 1}, {"MISSING", 1}}, true);
+
+    std::cout << "Batch containing a missing resource: "
+              << (rejectedBatch[0].approved || rejectedBatch[1].approved
+                      ? "unexpected approval" : "entire batch rejected")
+              << "\n";
+    std::cout << "Budget spent after rejected batch: "
+              << batchBudget.spent() << "\n";
+    std::cout << "History unchanged after rejection: "
+              << (batchAcq.history().size() == historyBefore ? "yes" : "no")
+              << "\n";
+
     return 0;
 }

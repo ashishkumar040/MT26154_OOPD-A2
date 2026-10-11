@@ -207,7 +207,86 @@ const PurchaseRecord& AcquisitionManager::cancelOrder(int orderNo) {
 }
 
 std::vector<PurchaseRecord> AcquisitionManager::processBatch(
-    const std::vector<PurchaseRequest>& reqs) {
+    const std::vector<PurchaseRequest>& reqs, bool allOrNothing) {
+    if (allOrNothing) {
+        Budget stagedGeneral = budget_;
+        std::map<std::string, Budget> stagedDepartments;
+        for (const auto& entry : departments_)
+            stagedDepartments.emplace(entry.first, entry.second.budget);
+
+        std::vector<PurchaseRecord> results;
+        results.reserve(reqs.size());
+        std::string batchFailure;
+
+        for (const auto& req : reqs) {
+            const Resource* r = catalog_.find(req.resourceId);
+            Money preTaxCost;
+            Money cost;
+            std::string why;
+
+            if (!r) {
+                why = "resource not found: " + req.resourceId;
+            } else if (req.quantity <= 0) {
+                why = "quantity must be positive";
+            } else {
+                preTaxCost = r->costFor(req.quantity);
+                cost = preTaxCost + taxFor(req.resourceId, req.quantity);
+
+                Budget* stagedBudget = &stagedGeneral;
+                if (!req.department.empty()) {
+                    auto it = stagedDepartments.find(req.department);
+                    if (it == stagedDepartments.end()) {
+                        why = "department not found: " + req.department;
+                    } else {
+                        stagedBudget = &it->second;
+                    }
+                }
+
+                if (why.empty()) {
+                    why = stagedBudget->check(
+                        r->category(), req.quantity, cost, req.resourceId);
+                    if (why.empty()) {
+                        try {
+                            stagedBudget->commit(
+                                r->category(), req.quantity, cost, req.resourceId);
+                        } catch (const std::exception& e) {
+                            why = e.what();
+                        }
+                    }
+                }
+            }
+
+            results.push_back(PurchaseRecord{
+                0, req.resourceId,
+                r ? r->title() : std::string("(unknown)"),
+                r ? r->category() : ResourceCategory::Book,
+                req.quantity, preTaxCost, cost, why.empty(), why,
+                false, 0, req.department
+            });
+
+            if (!why.empty() && batchFailure.empty())
+                batchFailure = why;
+        }
+
+        if (!batchFailure.empty()) {
+            for (auto& result : results) {
+                result.approved = false;
+                result.reason = "batch rejected: " + batchFailure;
+            }
+            return results;
+        }
+
+        results.clear();
+        for (const auto& req : reqs) {
+            if (req.department.empty())
+                results.push_back(purchase(req.resourceId, req.quantity));
+            else
+                results.push_back(
+                    purchase(req.resourceId, req.quantity, req.department));
+        }
+        return results;
+    }
+
     std::vector<PurchaseRecord> results;
     results.reserve(reqs.size());
 

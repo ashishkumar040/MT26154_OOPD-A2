@@ -303,6 +303,48 @@ static void testAcquisition() {
 }
 
 
+
+static void testAllOrNothingBatch() {
+    Catalog c;
+    c.emplace<Book>("B1", "Book One", std::vector<std::string>{"A"},
+                    "i", "P", 2020, Money::of(100));
+    c.emplace<Book>("B2", "Book Two", std::vector<std::string>{"B"},
+                    "i", "P", 2021, Money::of(100));
+
+    Budget b(Money::of(250));
+    AcquisitionManager acq(c, b);
+
+    // A valid all-or-nothing batch buys every item.
+    auto successful = acq.processBatch({{"B1", 1}, {"B2", 1}}, true);
+    CHECK(successful.size() == 2);
+    CHECK(successful[0].approved && successful[1].approved);
+    CHECK(b.spent() == Money::of(200));
+    CHECK(c.holdings("B1") == 1 && c.holdings("B2") == 1);
+    CHECK(acq.history().size() == 2);
+
+    // If any request fails, nothing in this batch is purchased or recorded.
+    const Money spentBefore = b.spent();
+    const auto historyBefore = acq.history().size();
+    const int b1Before = c.holdings("B1");
+    const int b2Before = c.holdings("B2");
+
+    auto rejected = acq.processBatch({{"B1", 1}, {"missing", 1}}, true);
+    CHECK(rejected.size() == 2);
+    CHECK(!rejected[0].approved && !rejected[1].approved);
+    CHECK(rejected[0].reason.find("batch rejected") != std::string::npos);
+    CHECK(b.spent() == spentBefore);
+    CHECK(c.holdings("B1") == b1Before && c.holdings("B2") == b2Before);
+    CHECK(acq.history().size() == historyBefore);
+
+    // Cumulative costs are validated, not just each request independently.
+    auto overBudget = acq.processBatch({{"B1", 1}, {"B2", 1}}, true);
+    CHECK(overBudget.size() == 2);
+    CHECK(!overBudget[0].approved && !overBudget[1].approved);
+    CHECK(b.spent() == spentBefore);
+    CHECK(c.holdings("B1") == b1Before && c.holdings("B2") == b2Before);
+    CHECK(acq.history().size() == historyBefore);
+}
+
 static void testTitleQuota() {
     Catalog c;
     c.emplace<Book>("B1", "Book One", std::vector<std::string>{"A"},
@@ -490,6 +532,7 @@ int main() {
     testOrderCancellation();
     testYearEndRollover();
     testDepartmentBudgets();
+    testAllOrNothingBatch();
     testAcquisition();
     testAudioBook();
     testThesis();
