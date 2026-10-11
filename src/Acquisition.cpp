@@ -37,7 +37,7 @@ bool AcquisitionManager::canPurchase(const std::string& id, int quantity,
         if (quantity <= 0)
             why = "quantity must be positive";
         else
-            why = budget_.check(r->category(), quantity, quote(id, quantity));
+            why = budget_.check(r->category(), quantity, quote(id, quantity), id);
     } else {
         why = "resource not found: " + id;
     }
@@ -60,7 +60,7 @@ const PurchaseRecord& AcquisitionManager::purchase(const std::string& id, int qu
     const Money preTaxCost = r.costFor(quantity);
     const Money cost = preTaxCost + taxFor(id, quantity);
 
-    budget_.commit(r.category(), quantity, cost);
+    budget_.commit(r.category(), quantity, cost, id);
     catalog_.addHoldings(id, quantity);
 
     history_.push_back(PurchaseRecord{
@@ -88,7 +88,7 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
         } else {
             preTaxCost = r->costFor(req.quantity);
             cost = preTaxCost + taxFor(req.resourceId, req.quantity);
-            why = budget_.check(r->category(), req.quantity, cost);
+            why = budget_.check(r->category(), req.quantity, cost, req.resourceId);
         }
 
         if (why.empty()) {

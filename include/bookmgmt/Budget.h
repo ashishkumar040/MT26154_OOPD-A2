@@ -8,6 +8,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <set>
 
 #include "bookmgmt/Money.h"
 #include "bookmgmt/Resource.h"
@@ -17,11 +18,13 @@ namespace bookmgmt {
 struct Quota {
     int maxUnits;    // maximum copies/seats that may be bought
     Money maxSpend;  // maximum money that may be spent
+    int maxTitles = 1000000000;  // maximum distinct titles
 };
 
 struct Usage {
     int units = 0;
     Money spent;
+    std::set<std::string> titles;
 };
 
 class Budget {
@@ -43,11 +46,12 @@ public:
 
     // Returns an empty string if the purchase fits, otherwise the reason it
     // does not. Does not change state.
-    std::string check(ResourceCategory c, int units, Money cost) const;
+    std::string check(ResourceCategory c, int units, Money cost, const std::string& titleId = {}) const;
 
     // Records a purchase. Throws QuotaExceededError / BudgetExceededError
     // (and changes nothing) if it would not fit.
-    void commit(ResourceCategory c, int units, Money cost);
+    void commit(ResourceCategory c, int units, Money cost,
+                const std::string& titleId = {});
 
     void print(std::ostream& os) const;
 

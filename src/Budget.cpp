@@ -29,7 +29,7 @@ Budget::Budget(Money total) : total_(total) {
 }
 
 void Budget::setQuota(ResourceCategory c, Quota q) {
-    if (q.maxUnits < 0 || q.maxSpend.isNegative())
+    if (q.maxUnits < 0 || q.maxSpend.isNegative() || q.maxTitles < 0)
         throw std::invalid_argument("quota limits must not be negative");
     quotas_[c] = q;
 }
@@ -88,13 +88,22 @@ Budget::Failure Budget::evaluate(ResourceCategory c, int units, Money cost,
     return Failure::None;
 }
 
-std::string Budget::check(ResourceCategory c, int units, Money cost) const {
+std::string Budget::check(ResourceCategory c, int units, Money cost,
+                          const std::string& titleId) const {
     std::string why;
     evaluate(c, units, cost, why);
-    return why;
+    if (!why.empty()) return why;
+
+    const auto q = quotaFor(c);
+    const auto u = usageFor(c);
+    if (!titleId.empty() && u.titles.find(titleId) == u.titles.end() &&
+        q && static_cast<int>(u.titles.size()) >= q->maxTitles) {
+        return std::string(categoryName(c)) + " distinct-title quota exceeded";
+    }
+    return {};
 }
 
-void Budget::commit(ResourceCategory c, int units, Money cost) {
+void Budget::commit(ResourceCategory c, int units, Money cost, const std::string& titleId) {
     std::string why;
     switch (evaluate(c, units, cost, why)) {
         case Failure::None: break;
@@ -103,6 +112,12 @@ void Budget::commit(ResourceCategory c, int units, Money cost) {
         case Failure::Overall: throw BudgetExceededError(why);
     }
     Usage& u = usage_[c];
+    if (!titleId.empty() && u.titles.find(titleId) == u.titles.end()) {
+        const auto q = quotaFor(c);
+        if (q && static_cast<int>(u.titles.size()) >= q->maxTitles)
+            throw QuotaExceededError(std::string(categoryName(c)) + " distinct-title quota exceeded");
+        u.titles.insert(titleId);
+    }
     u.units += units;
     u.spent += cost;
     spent_ += cost;

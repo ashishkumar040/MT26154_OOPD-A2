@@ -302,6 +302,34 @@ static void testAcquisition() {
     CHECK(acq.history().size() == 6);
 }
 
+
+static void testTitleQuota() {
+    Catalog c;
+    c.emplace<Book>("B1", "Book One", std::vector<std::string>{"A"},
+                    "i", "P", 2020, Money::of(100));
+    c.emplace<Book>("B2", "Book Two", std::vector<std::string>{"B"},
+                    "i", "P", 2021, Money::of(100));
+
+    Budget b(Money::of(500));
+    b.setQuota(ResourceCategory::Book, {10, Money::of(500), 1});
+    AcquisitionManager acq(c, b);
+
+    CHECK(acq.canPurchase("B1", 1));
+    acq.purchase("B1", 1);
+
+    // Buying the same title again must not use another title slot.
+    CHECK(acq.canPurchase("B1", 1));
+    acq.purchase("B1", 1);
+
+    // A different title exceeds the one-title category limit.
+    CHECK(!acq.canPurchase("B2", 1));
+    CHECK_THROWS(acq.purchase("B2", 1), QuotaExceededError);
+
+    CHECK(c.holdings("B1") == 2);
+    CHECK(c.holdings("B2") == 0);
+    CHECK(b.spent() == Money::of(200));
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -309,6 +337,7 @@ int main() {
     testEBook();
     testCatalog();
     testBudget();
+    testTitleQuota();
     testAcquisition();
     testAudioBook();
     testThesis();
