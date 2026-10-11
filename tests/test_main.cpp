@@ -330,6 +330,63 @@ static void testTitleQuota() {
     CHECK(b.spent() == Money::of(200));
 }
 
+
+static void testOrderCancellation() {
+    Catalog c;
+    c.emplace<Book>("B1", "Book One", std::vector<std::string>{"A"},
+                    "i", "P", 2020, Money::of(100));
+    c.emplace<Book>("B2", "Book Two", std::vector<std::string>{"B"},
+                    "i", "P", 2021, Money::of(100));
+
+    Budget b(Money::of(1000));
+    b.setQuota(ResourceCategory::Book, {10, Money::of(1000), 1});
+    AcquisitionManager acq(c, b, TaxRates{10, 20});
+
+    // Two orders for the same title share one distinct-title quota slot.
+    const int firstOrder = acq.purchase("B1", 2).orderNo;
+    acq.purchase("B1", 1);
+
+    CHECK(c.holdings("B1") == 3);
+    CHECK(b.spent() == Money::of(330));
+    CHECK(acq.totalSpent() == Money::of(330));
+
+    // Cancelling one order refunds its post-tax cost and units.
+    const auto& cancellation = acq.cancelOrder(firstOrder);
+    CHECK(cancellation.cancellation);
+    CHECK(cancellation.cancelsOrderNo == firstOrder);
+    CHECK(c.holdings("B1") == 1);
+    CHECK(b.spent() == Money::of(110));
+    CHECK(b.usageFor(ResourceCategory::Book).units == 1);
+    CHECK(acq.totalSpent() == Money::of(110));
+    CHECK(acq.history().size() == 3);
+    CHECK(acq.history()[0].approved && !acq.history()[0].cancellation);
+    CHECK(acq.history()[0].orderNo == firstOrder);
+
+    // The title slot must remain occupied while another B1 order is active.
+    CHECK(!acq.canPurchase("B2", 1));
+
+    // A second cancellation of the same order must fail without side effects.
+    CHECK_THROWS(acq.cancelOrder(firstOrder), std::invalid_argument);
+    CHECK(c.holdings("B1") == 1);
+    CHECK(b.spent() == Money::of(110));
+
+    // Cancelling the last active B1 order releases the title slot.
+    const int secondOrder = acq.history()[1].orderNo;
+    acq.cancelOrder(secondOrder);
+    CHECK(c.holdings("B1") == 0);
+    CHECK(b.spent() == Money::of(0));
+    CHECK(acq.totalSpent() == Money::of(0));
+    CHECK(b.usageFor(ResourceCategory::Book).units == 0);
+    CHECK(b.usageFor(ResourceCategory::Book).titles.empty());
+    CHECK(acq.canPurchase("B2", 1));
+
+    // Rejected and nonexistent orders cannot be cancelled.
+    const auto rejected = acq.processBatch({{"B2", 100}}).front();
+    CHECK(!rejected.approved);
+    CHECK_THROWS(acq.cancelOrder(rejected.orderNo), std::invalid_argument);
+    CHECK_THROWS(acq.cancelOrder(9999), std::invalid_argument);
+}
+
 int main() {
     testMoney();
     testResourcesAndCost();
@@ -338,6 +395,7 @@ int main() {
     testCatalog();
     testBudget();
     testTitleQuota();
+    testOrderCancellation();
     testAcquisition();
     testAudioBook();
     testThesis();

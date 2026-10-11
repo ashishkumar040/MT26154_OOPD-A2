@@ -26,6 +26,8 @@ struct PurchaseRecord {
     Money cost;  // post-tax cost
     bool approved;
     std::string reason;  // why it was rejected; empty if approved
+    bool cancellation = false;
+    int cancelsOrderNo = 0;
 };
 struct TaxRates {
     int printPercent = 0;
@@ -50,6 +52,9 @@ Money taxFor(const std::string& id, int quantity) const;
     // BudgetExceededError or std::invalid_argument. On success the budget
     // and holdings are updated and the record is added to history.
     const PurchaseRecord& purchase(const std::string& id, int quantity);
+
+    // Cancels an approved order and records the cancellation in history.
+    const PurchaseRecord& cancelOrder(int orderNo);
 
     // Processes requests in order; each is approved or rejected on its own
     // (never throws for a rejected request). Every outcome is recorded.

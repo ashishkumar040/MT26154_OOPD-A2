@@ -123,6 +123,23 @@ void Budget::commit(ResourceCategory c, int units, Money cost, const std::string
     spent_ += cost;
 }
 
+void Budget::refund(ResourceCategory c, int units, Money cost,
+                    const std::string& titleId, bool removeTitle) {
+    if (units <= 0 || cost.isNegative())
+        throw std::invalid_argument("invalid refund amount");
+
+    Usage& u = usage_[c];
+    if (units > u.units || cost > u.spent || cost > spent_)
+        throw std::invalid_argument("refund exceeds recorded usage");
+
+    u.units -= units;
+    u.spent -= cost;
+    spent_ -= cost;
+
+    if (removeTitle && !titleId.empty())
+        u.titles.erase(titleId);
+}
+
 void Budget::print(std::ostream& os) const {
     os << "Budget: total " << total_ << ", spent " << spent_ << ", remaining "
        << remaining() << "\n";

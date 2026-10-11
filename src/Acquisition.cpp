@@ -70,6 +70,64 @@ const PurchaseRecord& AcquisitionManager::purchase(const std::string& id, int qu
     return history_.back();
 }
 
+const PurchaseRecord& AcquisitionManager::cancelOrder(int orderNo) {
+    auto original = history_.end();
+
+    for (auto it = history_.begin(); it != history_.end(); ++it) {
+        if (it->orderNo == orderNo && !it->cancellation) {
+            original = it;
+            break;
+        }
+    }
+
+    if (original == history_.end())
+        throw std::invalid_argument("order not found");
+    if (!original->approved)
+        throw std::invalid_argument("cannot cancel a rejected order");
+
+    for (const auto& rec : history_) {
+        if (rec.cancellation && rec.cancelsOrderNo == orderNo)
+            throw std::invalid_argument("order already cancelled");
+    }
+
+    const PurchaseRecord cancelled = *original;
+    if (catalog_.holdings(cancelled.resourceId) < cancelled.quantity)
+        throw std::logic_error("holdings are insufficient to cancel this order");
+
+    // Keep the title quota occupied if another active order uses this title.
+    bool anotherActivePurchase = false;
+    for (const auto& rec : history_) {
+        if (!rec.approved || rec.cancellation ||
+            rec.resourceId != cancelled.resourceId || rec.orderNo == orderNo)
+            continue;
+
+        bool alreadyCancelled = false;
+        for (const auto& entry : history_) {
+            if (entry.cancellation && entry.cancelsOrderNo == rec.orderNo) {
+                alreadyCancelled = true;
+                break;
+            }
+        }
+        if (!alreadyCancelled) {
+            anotherActivePurchase = true;
+            break;
+        }
+    }
+
+    budget_.refund(cancelled.category, cancelled.quantity, cancelled.cost,
+                   cancelled.resourceId, !anotherActivePurchase);
+    catalog_.addHoldings(cancelled.resourceId, -cancelled.quantity);
+
+    history_.push_back(PurchaseRecord{
+        nextOrderNo_++, cancelled.resourceId, cancelled.title,
+        cancelled.category, cancelled.quantity, cancelled.preTaxCost,
+        cancelled.cost, true, "Cancellation of order #" +
+        std::to_string(orderNo), true, orderNo
+    });
+
+    return history_.back();
+}
+
 std::vector<PurchaseRecord> AcquisitionManager::processBatch(
     const std::vector<PurchaseRequest>& reqs) {
     std::vector<PurchaseRecord> results;
@@ -103,8 +161,21 @@ std::vector<PurchaseRecord> AcquisitionManager::processBatch(
 
 Money AcquisitionManager::totalSpent() const {
     Money sum;
-    for (const auto& rec : history_)
-        if (rec.approved) sum += rec.cost;
+    for (const auto& rec : history_) {
+        if (!rec.approved || rec.cancellation)
+            continue;
+
+        bool cancelled = false;
+        for (const auto& entry : history_) {
+            if (entry.cancellation && entry.cancelsOrderNo == rec.orderNo) {
+                cancelled = true;
+                break;
+            }
+        }
+
+        if (!cancelled)
+            sum += rec.cost;
+    }
     return sum;
 }
 
@@ -112,7 +183,7 @@ void AcquisitionManager::printReport(std::ostream& os) const {
     os << "Order history (" << history_.size() << " orders)\\n";
     for (const auto& rec : history_) {
         os << "  #" << std::setw(3) << std::left << rec.orderNo << " "
-           << (rec.approved ? "APPROVED" : "REJECTED") << "  " << std::setw(6)
+           << (rec.cancellation ? "CANCELLED" : (rec.approved ? "APPROVED" : "REJECTED")) << "  " << std::setw(6)
            << rec.resourceId << " x" << std::setw(3) << rec.quantity
            << "  pre-tax " << rec.preTaxCost
            << "  post-tax " << rec.cost << "  " << rec.title;
@@ -121,8 +192,21 @@ void AcquisitionManager::printReport(std::ostream& os) const {
     }
     os << "Pre-tax total: ";
     Money preTaxTotal;
-    for (const auto& rec : history_)
-        if (rec.approved) preTaxTotal += rec.preTaxCost;
+    for (const auto& rec : history_) {
+        if (!rec.approved || rec.cancellation)
+            continue;
+
+        bool cancelled = false;
+        for (const auto& entry : history_) {
+            if (entry.cancellation && entry.cancelsOrderNo == rec.orderNo) {
+                cancelled = true;
+                break;
+            }
+        }
+
+        if (!cancelled)
+            preTaxTotal += rec.preTaxCost;
+    }
     os << preTaxTotal << "\\n";
     os << "Post-tax total: " << totalSpent() << "\\n";
 }

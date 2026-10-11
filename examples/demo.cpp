@@ -146,5 +146,34 @@ int main() {
               << bulkElectronic.costFor(60) << "\n";
 
 
+    // Q8: Cancel an approved order, refund the budget, and reduce holdings.
+    std::cout << "\n=== Q8: Order cancellation ===\n";
+
+    Catalog cancelCatalog;
+    cancelCatalog.emplace<Book>(
+        "C001", "Cancellation Demo Book", std::vector<std::string>{"Author"},
+        "ISBN-C001", "Publisher", 2026, Money::of(100));
+
+    Budget cancelBudget(Money::of(1000));
+    cancelBudget.setQuota(ResourceCategory::Book, {10, Money::of(1000), 5});
+    AcquisitionManager cancelAcq(cancelCatalog, cancelBudget, TaxRates{10, 20});
+
+    const auto& approvedOrder = cancelAcq.purchase("C001", 2);
+    const int orderNo = approvedOrder.orderNo;
+
+    std::cout << "Order #" << orderNo << " approved; cost: "
+              << approvedOrder.cost << "\\n";
+    std::cout << "Holdings before cancellation: "
+              << cancelCatalog.holdings("C001") << "\\n";
+
+    const auto& cancellation = cancelAcq.cancelOrder(orderNo);
+    std::cout << "Cancellation record #" << cancellation.orderNo
+              << " for order #" << cancellation.cancelsOrderNo << "\\n";
+    std::cout << "Budget spent after refund: " << cancelBudget.spent() << "\\n";
+    std::cout << "Holdings after cancellation: "
+              << cancelCatalog.holdings("C001") << "\\n";
+    std::cout << "History records retained: "
+              << cancelAcq.history().size() << "\\n";
+
     return 0;
 }
