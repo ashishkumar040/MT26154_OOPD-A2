@@ -228,8 +228,34 @@ static void testCatalog() {
                  DuplicateIdError);
 
     CHECK(c.searchTitle("clean").size() == 2);
+
+    // Q13: Catalog searches by author, ISBN/ISSN, and publication year.
+    c.emplace<Book>("B3", "Effective C++",
+                    std::vector<std::string>{"Scott Meyers"},
+                    "978-0321334879", "Publisher", 2005, Money::of(1));
+    c.emplace<EBook>("E1", "Modern C++",
+                     std::vector<std::string>{"Scott Meyers", "Jane Doe"},
+                     "978-1111111111", "Publisher", 2020, Money::of(1),
+                     "https://example.com", EBookFormat::PDF, false);
+    c.emplace<Journal>("J1", "Computing Journal", "9876-5432", 12,
+                       "Publisher", 2017, Money::of(1));
+
+    CHECK(c.searchAuthor("scott").size() == 2);
+    CHECK(c.searchAuthor("JANE").size() == 1);
+    CHECK(c.searchAuthor("unknown").empty());
+
+    CHECK(c.searchISBNISSN("978-0321334879").size() == 1);
+    CHECK(c.searchISBNISSN("9876-5432").size() == 1);
+    CHECK(c.searchISBNISSN("978-111").size() == 1);
+    CHECK(c.searchISBNISSN("unknown").empty());
+
+    CHECK(c.searchYearRange(2005, 2005).size() == 1);
+    CHECK(c.searchYearRange(2017, 2020).size() == 3);
+    CHECK(c.searchYearRange(2021, 2025).empty());
+    CHECK_THROWS(c.searchYearRange(2020, 2010), std::invalid_argument);
+
     CHECK(c.byCategory(ResourceCategory::ElectronicResource).size() == 1);
-    CHECK(c.where([](const Resource& r) { return r.isDigital(); }).size() == 1);
+    CHECK(c.where([](const Resource& r) { return r.isDigital(); }).size() == 2);
 
     CHECK(c.holdings("B1") == 0);
     c.addHoldings("B1", 3);
@@ -237,7 +263,7 @@ static void testCatalog() {
     CHECK_THROWS(c.addHoldings("B1", -5), std::invalid_argument);
 
     c.remove("R1");
-    CHECK(c.size() == 2);
+    CHECK(c.size() == 5);
     CHECK_THROWS(c.remove("R1"), NotFoundError);
 }
 

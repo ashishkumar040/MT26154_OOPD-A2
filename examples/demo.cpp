@@ -62,6 +62,22 @@ int main() {
         std::cout << r->summary() << "\n";
     }
 
+
+    // Q13: Search by author, ISBN/ISSN, and publication-year range.
+    std::cout << "\n=== Q13: Catalog searches ===\n";
+
+    std::cout << "Author search (Bjarne):\n";
+    for (const Resource* r : catalog.searchAuthor("Bjarne"))
+        std::cout << r->summary() << "\n";
+
+    std::cout << "ISBN/ISSN search (1234-5678):\n";
+    for (const Resource* r : catalog.searchISBNISSN("1234-5678"))
+        std::cout << r->summary() << "\n";
+
+    std::cout << "Publication years 2013-2025:\n";
+    for (const Resource* r : catalog.searchYearRange(2013, 2025))
+        std::cout << r->summary() << "\n";
+
     std::cout << "\n=== Details of R001 ===\n" << catalog.get("R001");
     std::cout << "\n=== Details of J001 ===\n" << catalog.get("J001");
 

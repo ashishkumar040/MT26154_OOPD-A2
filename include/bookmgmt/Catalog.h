@@ -43,6 +43,9 @@ public:
     std::vector<const Resource*> all() const;
     std::vector<const Resource*> byCategory(ResourceCategory c) const;
     std::vector<const Resource*> searchTitle(const std::string& text) const;  // case-insensitive
+    std::vector<const Resource*> searchAuthor(const std::string& author) const;
+    std::vector<const Resource*> searchISBNISSN(const std::string& identifier) const;
+    std::vector<const Resource*> searchYearRange(int firstYear, int lastYear) const;
     std::vector<const Resource*> where(
         const std::function<bool(const Resource&)>& pred) const;
 

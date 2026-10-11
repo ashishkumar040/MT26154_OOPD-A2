@@ -5,6 +5,9 @@
 #include <stdexcept>
 
 #include "bookmgmt/Exceptions.h"
+#include "bookmgmt/Book.h"
+#include "bookmgmt/EBook.h"
+#include "bookmgmt/Journal.h"
 
 namespace bookmgmt {
 
@@ -85,6 +88,49 @@ std::vector<const Resource*> Catalog::searchTitle(const std::string& text) const
     const std::string needle = lower(text);
     return where([&needle](const Resource& r) {
         return lower(r.title()).find(needle) != std::string::npos;
+    });
+}
+
+
+std::vector<const Resource*> Catalog::searchAuthor(
+    const std::string& author) const {
+    const std::string needle = lower(author);
+    return where([&needle](const Resource& r) {
+        if (const auto* book = dynamic_cast<const Book*>(&r)) {
+            for (const auto& name : book->authors())
+                if (lower(name).find(needle) != std::string::npos)
+                    return true;
+        }
+        if (const auto* ebook = dynamic_cast<const EBook*>(&r)) {
+            for (const auto& name : ebook->authors())
+                if (lower(name).find(needle) != std::string::npos)
+                    return true;
+        }
+        return false;
+    });
+}
+
+std::vector<const Resource*> Catalog::searchISBNISSN(
+    const std::string& identifier) const {
+    const std::string needle = lower(identifier);
+    return where([&needle](const Resource& r) {
+        if (const auto* book = dynamic_cast<const Book*>(&r))
+            return lower(book->isbn()).find(needle) != std::string::npos;
+        if (const auto* ebook = dynamic_cast<const EBook*>(&r))
+            return lower(ebook->isbn()).find(needle) != std::string::npos;
+        if (const auto* journal = dynamic_cast<const Journal*>(&r))
+            return lower(journal->issn()).find(needle) != std::string::npos;
+        return false;
+    });
+}
+
+std::vector<const Resource*> Catalog::searchYearRange(
+    int firstYear, int lastYear) const {
+    if (firstYear > lastYear)
+        throw std::invalid_argument("first year cannot exceed last year");
+
+    return where([firstYear, lastYear](const Resource& r) {
+        return r.year() >= firstYear && r.year() <= lastYear;
     });
 }
 
