@@ -49,6 +49,15 @@ static void testResourcesAndCost() {
     CHECK(b.category() == ResourceCategory::Book);
     CHECK(!b.isDigital());
     CHECK(b.costFor(3) == Money::of(300));
+    // Q4: Hardcover books cost 20% more than listed price.
+Book hardcover("B2", "Hardcover Book", {"Author"}, "isbn2",
+               "Publisher", 2026, Money::of(100), 1,
+               Binding::Hardcover);
+
+CHECK(hardcover.costFor(1) == Money::of(120));
+CHECK(hardcover.costFor(2) == Money::of(240));
+CHECK(b.costFor(2) == Money::of(200));  // Paperback stays at listed price.
+CHECK_THROWS(hardcover.costFor(0), std::invalid_argument);
     CHECK_THROWS(b.costFor(0), std::invalid_argument);
     CHECK(joinAuthors(b.authors()) == "A, B and C");
 
