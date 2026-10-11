@@ -147,6 +147,49 @@ static void testEBook() {
     CHECK(os.str().find("DRM: Enabled") != std::string::npos);
 }
 
+static void testAudioBook() {
+    AudioBook audio(
+        "A1", "Digital Design Audio", "John Smith", 240,
+        "Tech Publisher", 2026, Money::of(100),
+        "https://example.com/audio",
+        LicenseModel::AnnualSubscription, Money::of(500));
+
+    CHECK(audio.category() == ResourceCategory::AudioBook);
+    CHECK(audio.isDigital());
+    CHECK(audio.narrator() == "John Smith");
+    CHECK(audio.durationMinutes() == 240);
+    CHECK(audio.costFor(2) == Money::of(700));
+
+    std::ostringstream os;
+    os << audio;
+
+    CHECK(os.str().find("narrator: John Smith") != std::string::npos);
+    CHECK(os.str().find("duration (minutes): 240") != std::string::npos);
+}
+
+static void testThesis() {
+    Thesis thesis(
+        "T1", "VLSI Design Research",
+        "IIIT Delhi", "M.Tech", "Dr. Sharma",
+        "IIIT Delhi", 2026);
+
+    CHECK(thesis.category() == ResourceCategory::Thesis);
+    CHECK(!thesis.isDigital());
+    CHECK(thesis.university() == "IIIT Delhi");
+    CHECK(thesis.degree() == "M.Tech");
+    CHECK(thesis.supervisor() == "Dr. Sharma");
+    CHECK(thesis.costFor(2) == Money::of(0));
+
+    std::ostringstream os;
+    os << thesis;
+
+    CHECK(os.str().find("university: IIIT Delhi") != std::string::npos);
+    CHECK(os.str().find("degree: M.Tech") != std::string::npos);
+    CHECK(os.str().find("supervisor: Dr. Sharma") != std::string::npos);
+}
+
+
+
 
 
 static void testCatalog() {
@@ -249,6 +292,9 @@ int main() {
     testCatalog();
     testBudget();
     testAcquisition();
+    testAudioBook();
+    testThesis();
+
     std::cout << (g_checks - g_failures) << "/" << g_checks << " checks passed\n";
     return g_failures == 0 ? 0 : 1;
 }
