@@ -56,7 +56,12 @@ Book hardcover("B2", "Hardcover Book", {"Author"}, "isbn2",
 
 CHECK(hardcover.costFor(1) == Money::of(120));
 CHECK(hardcover.costFor(2) == Money::of(240));
-CHECK(b.costFor(2) == Money::of(200));  // Paperback stays at listed price.
+CHECK(b.costFor(2) == Money::of(200));
+// Q5: 10% bulk discount for 10 or more print copies.
+CHECK(b.costFor(10) == Money::of(900));
+
+// Q4 + Q5: Hardcover surcharge followed by bulk discount.
+CHECK(hardcover.costFor(10) == Money::of(1080));  // Paperback stays at listed price.
 CHECK_THROWS(hardcover.costFor(0), std::invalid_argument);
     CHECK_THROWS(b.costFor(0), std::invalid_argument);
     CHECK(joinAuthors(b.authors()) == "A, B and C");
@@ -65,6 +70,8 @@ CHECK_THROWS(hardcover.costFor(0), std::invalid_argument);
                          LicenseModel::AnnualSubscription, Money::of(100));
     CHECK(e.isDigital());
     CHECK(e.costFor(5) == Money::of(150));
+    // Q5: First 50 seats full price; remaining seats half price.
+CHECK(e.costFor(60) == Money::of(650));
 
     CHECK(e.category() == ResourceCategory::ElectronicResource);
 
@@ -91,6 +98,8 @@ static void testJournal() {
 
     // Annual price × copies × subscription years
     CHECK(j.costFor(2) == Money::of(720));
+    // Q5: Bulk discount applies to 10 or more journal subscriptions.
+CHECK(j.costFor(10) == Money::of(3240));
     CHECK_THROWS(j.costFor(0), std::invalid_argument);
 
     // Subscription duration defaults to one year.

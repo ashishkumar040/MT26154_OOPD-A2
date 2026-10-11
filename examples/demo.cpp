@@ -124,5 +124,27 @@ int main() {
     std::cout << "Cost for 2 hardcover copies: "
               << hardcover.costFor(2) << "\n";
 
+    // Q5: Bulk discounts for print and electronic resources.
+    std::cout << "\n=== Q5: Bulk discount pricing ===\n";
+
+    Book paperback(
+        "B-PB", "Paperback Example", {"Author"},
+        "ISBN-PB", "Publisher", 2026, Money::of(100));
+
+    std::cout << "10 paperback copies: "
+              << paperback.costFor(10) << "\n";
+
+    std::cout << "10 hardcover copies (surcharge + bulk discount): "
+              << hardcover.costFor(10) << "\n";
+
+    ElectronicResource bulkElectronic(
+        "R-BULK", "Electronic Database", "Publisher", 2026,
+        Money::of(10), "https://example.com",
+        LicenseModel::AnnualSubscription, Money::of(100));
+
+    std::cout << "60 electronic seats (incl. platform fee): "
+              << bulkElectronic.costFor(60) << "\n";
+
+
     return 0;
 }

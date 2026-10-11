@@ -21,12 +21,18 @@ Journal::Journal(std::string id, std::string title, std::string issn,
     }
 }
 
+
 Money Journal::costFor(int quantity) const {
     requirePositive(quantity);
-    return unitPrice() *
-           (static_cast<std::int64_t>(quantity) * subscriptionYears_);
-}
 
+    Money total = unitPrice() *
+        (static_cast<std::int64_t>(quantity) * subscriptionYears_);
+
+    if (quantity >= 10) {
+        total = Money::fromMinor(total.minorUnits() * 90 / 100);
+    }
+
+    return total;}
 void Journal::printDetails(std::ostream& os) const {
     os << "  ISSN: " << issn_ << "\n"
        << "  issues per year: " << issuesPerYear_ << "\n"
