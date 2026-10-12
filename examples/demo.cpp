@@ -331,5 +331,17 @@ int main() {
     std::cout << "Active sessions after closing one: "
               << lending.activeSessions("L002") << "\n";
 
+    // Q15: Currency-aware Money operations.
+    std::cout << "\\n=== Q15: Money currencies ===\\n";
+    Money inr = Money::of(100, 0, "INR");
+    Money usd = Money::of(100, 0, "USD");
+    std::cout << "INR amount: " << inr << "\\n";
+    std::cout << "USD amount: " << usd << "\\n";
+    try {
+        (void)(inr + usd);
+    } catch (const std::invalid_argument& e) {
+        std::cout << "Mixed-currency addition rejected: " << e.what() << "\\n";
+    }
+
     return 0;
 }

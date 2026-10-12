@@ -42,6 +42,16 @@ static void testMoney() {
     CHECK(Money::of(3) * 4 == Money::of(12));
     CHECK(Money::of(1) < Money::of(2));
     CHECK_THROWS(Money::of(1, 100), std::invalid_argument);
+    CHECK(Money::of(10, 0, "USD").currency() == "USD");
+    CHECK_THROWS(Money::of(1, 0, "USD") + Money::of(1, 0, "INR"),
+                 std::invalid_argument);
+    CHECK_THROWS(Money::of(1, 0, "USD") - Money::of(1, 0, "INR"),
+                 std::invalid_argument);
+    CHECK_THROWS(Money::of(1, 0, "USD") == Money::of(1, 0, "INR"),
+                 std::invalid_argument);
+    CHECK_THROWS(Money::of(1, 0, "USD") < Money::of(2, 0, "INR"),
+                 std::invalid_argument);
+    CHECK_THROWS(Money::of(1, 0, "usd"), std::invalid_argument);
 }
 
 static void testResourcesAndCost() {
