@@ -1,195 +1,115 @@
-# BookManagement — a C++17 library for library acquisitions
+# BookManagement — OOPD Assignment 2
 
-A small, dependency-free C++ library for cataloguing library resources and
-buying them against a budget with per-category purchase quotas. It is written
-as a starting point for an assignment: the core is complete and tested, and
-the places intended for extension are marked `EXTENSION POINT` in the source.
+## Assignment Overview
 
-## Building
+BookManagement is a C++17 library-acquisition system. It maintains a catalogue of resources, calculates acquisition costs, and checks category quotas and the overall budget before approving purchases. Assignment 2 extends the starter project with additional resource types, pricing rules, budget and quota management, acquisition features, catalogue searches, lending, currency-aware money, and cleaner tests.
 
-```sh
+## Requirements and Build Instructions
+
+Requirements:
+- A C++17-compatible compiler
+- CMake
+- Git
+
+From the project root, configure and build the project:
+
+```bash
 cmake -S . -B build
 cmake --build build
-./build/bookmgmt_tests     # runs the tests
-./build/demo               # walkthrough of every feature
 ```
 
-Without CMake:
+Run the tests:
 
-```sh
-g++ -std=c++17 -Wall -Wextra -Iinclude src/*.cpp examples/demo.cpp -o demo
-g++ -std=c++17 -Wall -Wextra -Iinclude src/*.cpp tests/test_main.cpp -o tests
+```bash
+./build/bookmgmt_tests
 ```
 
-## Layout
+Run the demo (the assignment's supplied CMake configuration names this executable `demo`):
 
-```
-include/bookmgmt/
-  bookmgmt.h            includes everything below
-  Money.h               currency amounts (stored as whole paise/cents)
-  Resource.h            abstract base class + ResourceCategory
-  Book.h                print book
-  ElectronicResource.h  online resource licensed per user seat
-  Budget.h              overall budget + per-category Quota
-  Catalog.h             owns resources, tracks holdings, searching
-  Acquisition.h         purchase requests, orders, history, reports
-  Exceptions.h          exception classes
-src/                    implementations
-examples/demo.cpp       end-to-end example
-tests/test_main.cpp     tests (tiny built-in CHECK macro, no framework)
+```bash
+./build/demo
 ```
 
-## Design
+The assignment requires the project to compile without warnings using `-Wall -Wextra`, all existing tests to continue passing, tests for each new question to be added to `tests/test_main.cpp`, and the demo to be extended in `examples/demo.cpp`.
 
-### Class hierarchy
+## Question-wise Implementation
 
-```
-Resource (abstract)
-├── Book
-└── ElectronicResource
-```
+### Q1 — Journal
 
-Every `Resource` has an id, title, publisher, year and a unit price, and
-provides two virtual functions that subclasses override: `category()` and
-`costFor(quantity)`. "Quantity" means copies for print items and
-concurrent-user seats for electronic ones.
+Adds `Journal`, derived from `Resource`, for print journals bought as subscriptions. It stores the ISSN, issues per year, and subscription length. Subscription length defaults to one year and must be at least one; an invalid value throws `std::invalid_argument`. The annual unit price is multiplied by the number of copies and subscription years. The category is included in the category-name and all-categories support, and `printDetails()` reports the journal-specific fields.
 
-| Class | `unitPrice` means | `costFor(n)` |
-|---|---|---|
-| `Book` | price per copy | `unitPrice × n` |
-| `ElectronicResource` | price per seat | `platformFee + unitPrice × n` |
+### Q2 — EBook
 
-`Resource::print()` writes the fields every resource has, then calls the
-virtual function `printDetails()`, which each subclass overrides to print its
-own fields.
+Adds `EBook`, derived from `ElectronicResource`, with authors, ISBN, file format (PDF, EPUB, or HTML), and DRM-protection information. It retains the parent electronic-resource pricing and has its own resource category and quota. Its details include inherited electronic-resource information followed by ebook-specific information. The design question notes that `Book` and `EBook` both store author and ISBN information; a shared book-information abstraction could reduce that duplication.
 
-### Money
+### Q3 — AudioBook and Thesis
 
-`Money` stores a whole number of paise/cents (`int64_t`), so adding up costs
-never suffers floating-point rounding errors. Create values with
-`Money::of(125, 50)` (125.50) or `Money::fromMinor(12550)`.
+Adds `AudioBook` with narrator and duration in minutes, and `Thesis` with university, degree, and supervisor. Their base classes should reflect their resource behaviour: an audiobook is an electronic resource when licensed like other electronic resources, while a thesis can use the resource base directly when modelled as an academic item that is usually free. The code comment should justify the selected bases.
 
-### Quotas and budget
+### Q4 — Hardcover Pricing
 
-`Budget` holds a total spending limit plus an optional `Quota{maxUnits, maxSpend}`
-per `ResourceCategory`. A purchase is allowed only if it fits the category's
-unit quota, the category's spend quota, and the overall remaining budget, in
-that order. Categories without a quota are limited only by the overall budget.
+Hardcover books cost 20% more than their listed unit price.
 
-- `check(...)` returns the reason a purchase would fail (empty string = OK).
-- `commit(...)` records it, or throws `QuotaExceededError` /
-  `BudgetExceededError` and leaves the budget unchanged.
+### Q5 — Bulk Discounts
 
-### Acquisition
+Print items receive a 10% discount when at least 10 copies are purchased in one order. For electronic resources, each seat after the 50th costs half price.
 
-`AcquisitionManager` connects a `Catalog` and a `Budget`:
+### Q6 — Taxes
 
-- `quote(id, n)` — price without buying.
-- `canPurchase(id, n, &reason)` — checks without buying.
-- `purchase(id, n)` — buys or throws; updates budget and holdings.
-- `processBatch(requests)` — processes each request in order, never throws
-  for a rejected request, and records every outcome (approved or not) in
-  `history()`.
-- `printReport(os)` — order history and total spend.
+Print and electronic items use different configurable tax rates. Reports show pre-tax and post-tax totals, and quota checks use the post-tax cost.
 
-### Ownership
+### Q7 — Distinct-Title Quotas
 
-`Catalog` owns resources through `std::unique_ptr<Resource>`; copying a
-`Resource` is disabled so a derived object can't be accidentally sliced into
-a base one. Searches return `const Resource*` pointers that stay valid until
-the item is removed.
+Adds a limit on the number of different titles that may be purchased in each category, alongside the existing quota and budget checks.
 
-## Minimal usage
+### Q8 — Cancellation
 
-```cpp
-#include "bookmgmt/bookmgmt.h"
-using namespace bookmgmt;
+Allows an approved order to be cancelled. The cancellation refunds budget and quota usage and reduces holdings. The original order remains in history, and a separate cancellation record is added.
 
-Catalog catalog;
-catalog.emplace<Book>("B001", "Clean Code", std::vector<std::string>{"Robert C. Martin"},
-                      "978-0132350884", "Prentice Hall", 2008, Money::of(450));
+### Q9 — Department Budgets
 
-Budget budget(Money::of(10000));
-budget.setQuota(ResourceCategory::Book, {5, Money::of(2000)});
+Gives each department its own budget and quotas. A purchase request identifies the department to which the cost is charged.
 
-AcquisitionManager acq(catalog, budget);
-acq.purchase("B001", 3);            // OK: 1350.00
-acq.canPurchase("B001", 3);         // false: unit quota (2 left)
+### Q10 — Year-End Rollover
+
+Creates the next year's budget from the current year's budget by carrying forward a configurable percentage of the unspent amount.
+
+### Q11 — All-or-Nothing Batch Processing
+
+Adds an all-or-nothing option to `processBatch`. If any request in the batch would be rejected, no request in that batch is purchased.
+
+### Q12 — Vendors
+
+Records multiple vendors and their prices for the same title, purchases from the cheapest vendor, and records the selected vendor in the order history.
+
+### Q13 — Catalogue Searches
+
+Adds searches by author, ISBN/ISSN, and a range of publication years.
+
+### Q14 — Lending
+
+Adds lending support for print copies, limited by copies held, and electronic sessions, limited by the number of licensed seats. Patrons can borrow and return print copies and open and close electronic sessions.
+
+### Q15 — Currency-Aware Money
+
+Adds a currency code to `Money`. Adding, subtracting, or comparing amounts with different currencies must throw an exception.
+
+### Q16 — Assertions
+
+Replaces the test macros with standard C++ `assert` checks without changing the tests' meanings.
+
+## Testing
+
+Run the build and test commands above after making changes. A successful test run in this project reports:
+
+```text
+All assertions passed
 ```
 
-## Extension exercises
+## Submission Checklist
 
-Difficulty: ★ easy, ★★ moderate, ★★★ challenging. For every exercise, add
-tests to `tests/test_main.cpp` and extend `examples/demo.cpp` to show the new
-feature. Exercises 1 and 2 should be done first; later exercises may use
-the classes they add.
-
-**Extending the class hierarchy**
-
-1. ★★ **Journal.** Add a class `Journal`, derived from `Resource`, for a print
-   journal bought as a subscription.
-   - Extra fields: ISSN, issues per year, and subscription length in years
-     (default 1; must be at least 1).
-   - `unitPrice` is the annual subscription price for one copy.
-   - `costFor(copies)` = `unitPrice × copies × subscriptionYears`.
-   - Add `Journal` to `ResourceCategory`, `categoryName()` and
-     `kAllCategories`, so budgets can set a journal quota and reports list it.
-   - Override `printDetails()` to print the new fields.
-
-2. ★★ **EBook.** Add a class `EBook`, derived from `ElectronicResource`.
-   - Extra fields: authors, ISBN, file format (PDF, EPUB or HTML) and whether
-     it is DRM-protected.
-   - Pricing is inherited unchanged from `ElectronicResource`.
-   - It needs its own `ResourceCategory` value so e-books can have a quota
-     separate from other electronic resources.
-   - `printDetails()` should print the inherited fields (call the parent's
-     version) followed by the new ones.
-   - Question to answer in comments: an e-book is also a kind of book. What
-     code is now duplicated between `Book` and `EBook`, and how could you
-     avoid it?
-
-3. ★ Add an `AudioBook` (narrator, duration in minutes) and a `Thesis`
-   (university, degree, supervisor; usually free of cost).
-
-4. ★★ Add a `Magazine` derived from `Journal` whose cost also includes
-   postage for each issue.
-
-**Pricing**
-
-5. ★ Hardcover books cost 20% more than their listed unit price.
-6. ★★ Bulk discount: 10% off when buying 10 or more copies of a print item.
-   For electronic resources, seats beyond the 50th cost half price.
-7. ★★ Taxes: print and electronic items are taxed at different rates.
-   Reports should show both pre-tax and post-tax totals.
-
-**Quotas and budget**
-
-8. ★ Add a limit on the number of *different titles* bought per category.
-9. ★★ Support cancelling an approved order: refund the budget and reduce the
-   holdings. Keep the original record and add a cancellation record.
-10. ★★ Department budgets: each department (Computer Science, Physics, ...)
-    has its own budget and quotas; a purchase request names the department.
-11. ★★ Year-end rollover: carry a configurable percentage of unspent budget
-    into next year's budget.
-12. ★★ Warnings: print a warning when a category passes 80% of its quota.
-
-**Acquisition**
-
-13. ★ Add an option to make `processBatch` all-or-nothing: if any request
-    would be rejected, buy nothing.
-14. ★★ Requests carry a priority; process higher-priority requests first.
-15. ★★★ Vendors: the same title is sold by several vendors at different
-    prices; buy from the cheapest vendor.
-
-**Catalog**
-
-16. ★ Search by author, ISBN/ISSN, and by a range of years.
-17. ★★ Save the catalog to a text file and load it back, creating the
-    correct derived class for each line.
-18. ★★ Lending: patrons borrow and return print copies (limited by the number
-    of copies held), and use electronic seats (limited by seats licensed).
-
-**Money**
-
-19. ★★ Add a currency code to `Money`; adding amounts in different
-    currencies should throw an exception.
+- Include the complete project directory in one `.zip` archive.
+- Include the Git repository and its `.git` directory in the archive.
+- Include `ANSWERS.md` listing the questions attempted, design decisions, and written answers.
+- Include the source code, tests, demo, and documentation.
+- Submit a `.zip` file, not a `.rar` file.
